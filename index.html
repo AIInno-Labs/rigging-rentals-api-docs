@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rigging Rentals API — Swagger</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #fafafa; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+              padding: 12px 24px; background: #1f2a37; color: #fff; }
+    .topbar h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    .topbar nav a { color: #cbd5e1; text-decoration: none; margin-left: 16px; font-size: 14px; }
+    .topbar nav a:hover, .topbar nav a.active { color: #fff; }
+    .swagger-ui .topbar { display: none; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Rigging Rentals API</h1>
+    <nav>
+      <a href="./" class="active">Swagger UI</a>
+      <a href="./redoc.html">Reference (Redoc)</a>
+      <a href="./openapi.yaml" download>Download openapi.yaml</a>
+    </nav>
+  </header>
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" crossorigin></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js" crossorigin></script>
+  <script>
+    window.onload = function () {
+      window.ui = SwaggerUIBundle({
+        url: "./openapi.yaml",
+        dom_id: "#swagger-ui",
+        deepLinking: true,
+        docExpansion: "none",
+        defaultModelsExpandDepth: 0,
+        filter: true,
+        displayRequestDuration: true,
+        persistAuthorization: true,
+        tryItOutEnabled: false,
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        plugins: [SwaggerUIBundle.plugins.DownloadUrl],
+        layout: "StandaloneLayout"
+      });
+    };
+  </script>
+</body>
+</html>
