@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Database · Rigging Rentals API</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./assets/site.css" />
+  <style>
+    .db { display: grid; grid-template-columns: 300px minmax(0, 1fr); min-height: calc(100vh - 60px); }
+    .rail { border-right: 1px solid var(--line); background: var(--panel); padding: 20px 0 40px; position: sticky; top: 60px; height: calc(100vh - 60px); overflow-y: auto; }
+    .rail-head { padding: 0 20px 14px; }
+    .rail-head h1 { font-family: var(--font-sign); font-weight: 700; font-size: 28px; line-height: 1.1; margin: 0 0 4px; }
+    .rail-head p { margin: 0 0 14px; font-size: 14px; color: var(--chain); }
+    .search { width: 100%; padding: 8px 10px; font: inherit; font-size: 15px; border: 1px solid var(--line); border-radius: 2px; background: var(--galv); color: var(--steel); }
+    .group { margin-top: 14px; }
+    .group-name { display: flex; align-items: center; gap: 8px; padding: 4px 20px; font-family: var(--font-sign); font-weight: 600; font-size: 16px; }
+    .swatch { width: 10px; height: 10px; flex: none; }
+    .group ul { list-style: none; margin: 0; padding: 0; }
+    .group a { display: block; padding: 3px 20px 3px 38px; font-family: var(--font-code); font-size: 13px; text-decoration: none; color: var(--steel-2); border-left: 3px solid transparent; }
+    .group a:hover { background: var(--galv); }
+    .group a[aria-current="true"] { background: var(--galv); border-left-color: var(--hivis); color: var(--steel); font-weight: 500; }
+
+    .main { padding: 28px 36px 60px; max-width: 1100px; }
+    .crumb { font-size: 14px; color: var(--chain); margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+    .tname { font-family: var(--font-code); font-weight: 500; font-size: 30px; margin: 0 0 6px; word-break: break-all; }
+    .tnote { margin: 0 0 22px; color: var(--chain); max-width: 70ch; }
+    h2 { font-family: var(--font-sign); font-weight: 600; font-size: 20px; margin: 30px 0 10px; }
+
+    table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); font-size: 14px; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-weight: 600; font-size: 13px; color: var(--chain); background: var(--galv); }
+    td.col { font-family: var(--font-code); font-size: 13px; white-space: nowrap; }
+    td.type { font-family: var(--font-code); font-size: 13px; color: var(--steel-2); white-space: nowrap; }
+    td.note { color: var(--steel-2); }
+    .key { display: inline-block; margin-left: 6px; padding: 0 5px; font-family: var(--font); font-size: 12px; font-weight: 600; border: 1px solid currentColor; border-radius: 2px; }
+    .key.pk { color: var(--steel); background: var(--hivis); border-color: var(--hivis); }
+    .key.fk { color: var(--chain); }
+    .key.nn, .key.uq { color: var(--chain); border-style: dashed; }
+    td a { color: var(--steel); text-decoration-color: var(--hivis); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+
+    .rels { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .rels ul { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 1px solid var(--line); }
+    .rels li { padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .rels li:last-child { border-bottom: 0; }
+    .rels code { font-family: var(--font-code); font-size: 13px; }
+    .card { font-size: 12px; color: var(--chain); margin-left: 4px; }
+    .empty { color: var(--chain); font-size: 14px; padding: 7px 12px; }
+    .downloads { margin-top: 34px; font-size: 14px; color: var(--chain); }
+    .downloads a { color: var(--steel); }
+
+    @media (max-width: 860px) {
+      .db { grid-template-columns: 1fr; }
+      .rail { position: static; height: auto; max-height: 45vh; border-right: 0; border-bottom: 1px solid var(--line); }
+      .main { padding: 22px 16px 48px; }
+      .rels { grid-template-columns: 1fr; }
+      .table-scroll { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="rr-bar">
+    <a class="rr-brand" href="./">
+      <span class="rr-tag" aria-hidden="true">API</span>
+      <span>
+        <span class="rr-brand-name">Rigging Rentals</span>
+        <span class="rr-brand-sub">API v1</span>
+      </span>
+    </a>
+    <nav class="rr-nav" aria-label="Documentation">
+      <a href="./">Endpoints</a>
+      <a href="./redoc.html">Reference</a>
+      <a href="./schema.html" aria-current="page">Database</a>
+      <a class="rr-dl" href="./schema.dbml" download>schema.dbml</a>
+    </nav>
+  </header>
+
+  <div class="db">
+    <aside class="rail" aria-label="Tables">
+      <div class="rail-head">
+        <h1>Database</h1>
+        <p id="summary"></p>
+        <label for="q" class="visually-hidden" style="position:absolute;left:-9999px">Find a table or column</label>
+        <input id="q" class="search" type="search" placeholder="Find a table or column" autocomplete="off" />
+      </div>
+      <div id="groups"></div>
+    </aside>
+    <main class="main" id="detail" tabindex="-1"></main>
+  </div>
+
+  <script src="./assets/schema-data.js"></script>
+  <script>
+  (function () {
+    const S = window.SCHEMA;
+    const LABEL = {
+      tenancy_access: "Tenancy and access", workflow: "Workflow stages", sales: "Sales",
+      hire_orders: "Hire orders", fleet: "Fleet", workshop: "Workshop and logistics",
+      finance: "Finance Desk", documents_support: "Documents and support"
+    };
+    const byName = Object.fromEntries(S.tables.map(t => [t.name, t]));
+    const groupOf = {};
+    S.groups.forEach(g => g.tables.forEach(t => groupOf[t] = g));
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    // normalise refs into child (many side / FK holder) -> parent
+    const fks = []; // {child, childCols, parent, parentCols, oneToOne}
+    S.refs.forEach(r => {
+      if (r.fromRel === "1" && r.toRel === "*") fks.push({ child: r.to, childCols: r.toCols, parent: r.from, parentCols: r.fromCols, one: false });
+      else if (r.fromRel === "*" && r.toRel === "1") fks.push({ child: r.from, childCols: r.fromCols, parent: r.to, parentCols: r.toCols, one: false });
+      else {
+        // one-to-one: the side whose column is not its own primary key holds the FK
+        const isPk = (tn, cols) => { const t = byName[tn]; return cols.length === 1 && t.fields.some(f => f.name === cols[0] && f.pk); };
+        if (isPk(r.from, r.fromCols)) fks.push({ child: r.to, childCols: r.toCols, parent: r.from, parentCols: r.fromCols, one: true });
+        else fks.push({ child: r.from, childCols: r.fromCols, parent: r.to, parentCols: r.toCols, one: true });
+      }
+    });
+
+    document.getElementById("summary").textContent =
+      S.tables.length + " tables, " + S.refs.length + " relationships. PostgreSQL. Every table also has created_at, updated_at, created_by and updated_by.";
+
+    function renderRail(filter) {
+      const f = (filter || "").trim().toLowerCase();
+      const current = location.hash.replace("#", "");
+      document.getElementById("groups").innerHTML = S.groups.map(g => {
+        const items = g.tables.filter(n => !f || n.includes(f) || byName[n].fields.some(x => x.name.includes(f)));
+        if (!items.length) return "";
+        return '<div class="group"><div class="group-name"><span class="swatch" style="background:' + esc(g.color || "#999") + '"></span>' +
+          esc(LABEL[g.name] || g.name) + "</div><ul>" +
+          items.map(n => '<li><a href="#' + n + '"' + (n === current ? ' aria-current="true"' : "") + ">" + n + "</a></li>").join("") +
+          "</ul></div>";
+      }).join("") || '<p class="empty">No table or column matches “' + esc(f) + "”.</p>";
+    }
+
+    function tableLink(n) { return '<a href="#' + n + '"><code>' + n + "</code></a>"; }
+
+    function renderDetail(name) {
+      const t = byName[name] || byName.orders;
+      const g = groupOf[t.name];
+      const outFks = fks.filter(k => k.child === t.name);
+      const inFks = fks.filter(k => k.parent === t.name);
+      const fkCol = {};
+      outFks.forEach(k => k.childCols.forEach(c => fkCol[c] = k));
+      const pkIdx = t.indexes.find(i => i.pk);
+      const uniq = t.indexes.filter(i => i.unique && i.cols.length > 1);
+
+      const rows = t.fields.map(f => {
+        const k = fkCol[f.name];
+        const keys = (f.pk || (pkIdx && pkIdx.cols.includes(f.name)) ? '<span class="key pk">PK</span>' : "") +
+          (k ? '<span class="key fk">FK</span>' : "") +
+          (f.unique ? '<span class="key uq">unique</span>' : "") +
+          (f.notNull && !f.pk ? '<span class="key nn">required</span>' : "");
+        const notes = [];
+        if (k) notes.push("→ " + tableLink(k.parent) + "." + k.parentCols.join(", "));
+        if (f.note) notes.push(esc(f.note));
+        if (f.dflt) notes.push("default " + esc(f.dflt));
+        return "<tr><td class=\"col\">" + esc(f.name) + keys + '</td><td class="type">' + esc(f.type) + '</td><td class="note">' + notes.join(" · ") + "</td></tr>";
+      }).join("");
+
+      const outList = outFks.length ? outFks.map(k => "<li><code>" + k.childCols.join(", ") + "</code> → " + tableLink(k.parent) +
+        '<span class="card">' + (k.one ? "one to one" : "many to one") + "</span></li>").join("") : '<li class="empty">This table points to no other table.</li>';
+      const inList = inFks.length ? inFks.map(k => "<li>" + tableLink(k.child) + " <code>." + k.childCols.join(", ") + "</code>" +
+        '<span class="card">' + (k.one ? "one to one" : "one to many") + "</span></li>").join("") : '<li class="empty">No other table points here.</li>';
+
+      document.getElementById("detail").innerHTML =
+        '<p class="crumb"><span class="swatch" style="background:' + esc(g ? g.color : "#999") + '"></span>' + esc(g ? (LABEL[g.name] || g.name) : "") + "</p>" +
+        '<h1 class="tname">' + esc(t.name) + "</h1>" +
+        (t.note ? '<p class="tnote">' + esc(t.note) + "</p>" : '<p class="tnote">' + t.fields.length + " columns</p>") +
+        '<div class="table-scroll"><table><thead><tr><th scope="col">Column</th><th scope="col">Type</th><th scope="col">Notes</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
+        (uniq.length ? "<h2>Unique together</h2><p>" + uniq.map(i => "<code>(" + i.cols.join(", ") + ")</code>").join(", ") + "</p>" : "") +
+        '<div class="rels"><section><h2>Points to</h2><ul>' + outList + "</ul></section>" +
+        "<section><h2>Pointed to by</h2><ul>" + inList + "</ul></section></div>" +
+        '<p class="downloads">Open the whole diagram in dbdiagram.io by pasting <a href="./schema.dbml" download>schema.dbml</a>, or create the tables with <a href="./schema.sql" download>schema.sql</a>.</p>';
+      document.title = t.name + " · Database · Rigging Rentals API";
+    }
+
+    function route() {
+      const name = decodeURIComponent(location.hash.replace("#", "")) || "orders";
+      renderRail(document.getElementById("q").value);
+      renderDetail(name);
+      const cur = document.querySelector('.group a[aria-current="true"]');
+      const rail = document.querySelector(".rail");
+      if (cur && rail.scrollHeight > rail.clientHeight) {
+        const top = cur.offsetTop - rail.clientHeight / 2;
+        rail.scrollTop = Math.max(0, top);
+      }
+    }
+    document.getElementById("q").addEventListener("input", e => renderRail(e.target.value));
+    window.addEventListener("hashchange", () => { route(); document.getElementById("detail").focus({ preventScroll: true }); window.scrollTo(0, 0); });
+    route();
+  })();
+  </script>
+</body>
+</html>

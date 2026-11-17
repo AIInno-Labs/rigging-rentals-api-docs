@@ -1,0 +1,686 @@
+// Rigging Rentals — database schema (PostgreSQL)
+// Paste into https://dbdiagram.io (New diagram → replace the sample) to render the ER diagram.
+// Every table also has created_at, updated_at, created_by, updated_by (omitted to keep the diagram readable).
+
+Project rigging_rentals {
+  database_type: 'PostgreSQL'
+  Note: 'Equipment-hire platform: enquiry → quote → order → dispatch → return → Finance Desk → payment. Multi-tenant by organization.'
+}
+
+// ───────────── Tenancy & access ─────────────
+TableGroup tenancy_access [color: #3F5F7F] {
+  organization
+  users
+  roles
+  privileges
+  users_roles
+  roles_privileges
+  application_parameter
+}
+
+Table organization {
+  id uuid [pk]
+  company_name varchar(200) [not null]
+  company_code varchar(30) [not null, unique]
+  currency char(3) [not null, default: 'AUD']
+  gst_no varchar(20)
+  address_line1 varchar(200)
+  address_line2 varchar(200)
+  city varchar(100)
+  state varchar(50)
+  postcode varchar(10)
+  country varchar(60)
+  contact_name varchar(120)
+  contact_email varchar(200)
+  contact_phone varchar(40)
+  logo bytea
+  logo_mime varchar(50)
+  active boolean [not null, default: true]
+}
+
+Table users {
+  user_id uuid [pk]
+  organization_id uuid [ref: > organization.id, note: 'NULL = platform user (Super Admin)']
+  email varchar(200) [not null]
+  full_name varchar(120)
+  phone varchar(40)
+  password varchar(100)
+  auth_provider varchar(20) [note: 'LOCAL | GOOGLE | MICROSOFT']
+  enabled boolean [not null, default: true]
+  locked boolean [not null, default: false]
+  failed_attempt int [not null, default: 0]
+  lock_time timestamptz
+  last_login_at timestamptz
+  password_changed_at timestamptz
+  indexes {
+    (organization_id, email) [unique, note: 'NULLS NOT DISTINCT']
+  }
+}
+
+Table roles {
+  role_id uuid [pk]
+  organization_id uuid [ref: > organization.id, note: 'NULL = system role (SUPER_ADMIN, ORG_ADMIN)']
+  role varchar(80) [not null]
+  role_code varchar(40) [not null]
+  description text
+  system_managed boolean [not null, default: false]
+  indexes {
+    (organization_id, role_code) [unique]
+  }
+}
+
+Table privileges {
+  privilege_id uuid [pk]
+  privilege_code varchar(60) [not null, unique, note: 'e.g. INVOICE_APPROVE, MENU_FINANCE_DESK, FIELD_JOB_RATE']
+  privilege_type varchar(10) [not null, note: 'ACTION | MENU | FIELD']
+  domain varchar(40)
+  field_key varchar(80)
+  access_mode varchar(10) [note: 'READ | WRITE | HIDDEN']
+  description varchar(200)
+  system_managed boolean [not null, default: true]
+  active boolean [not null, default: true]
+  sort_order int
+}
+
+Table users_roles {
+  user_id uuid [ref: > users.user_id]
+  role_id uuid [ref: > roles.role_id]
+  indexes {
+    (user_id, role_id) [pk]
+  }
+}
+
+Table roles_privileges {
+  role_id uuid [ref: > roles.role_id]
+  privilege_id uuid [ref: > privileges.privilege_id]
+  indexes {
+    (role_id, privilege_id) [pk]
+  }
+}
+
+Table application_parameter {
+  id uuid [pk]
+  param_name varchar(100) [not null]
+  param_value text
+  param_type varchar(10) [not null, note: 'STRING | INT | DECIMAL | BOOLEAN | JSON | UUID']
+  organization_id uuid [ref: > organization.id, note: 'NULL = platform default']
+  org_editable boolean [not null, default: false]
+  description varchar(200)
+  indexes {
+    (param_name, organization_id) [unique, note: 'NULLS NOT DISTINCT']
+  }
+}
+
+// ───────────── Workflow stages ─────────────
+TableGroup workflow [color: #6B5B95] {
+  stages
+  stage_transitions
+  stage_history
+  document_type_stage_rules
+}
+
+Table stages {
+  stage_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  entity_type varchar(20) [not null, note: 'INQUIRY | QUOTE | ORDER | INVOICE | WORK_ORDER | LOGISTICS']
+  code varchar(40) [not null]
+  name varchar(80) [not null, note: 'e.g. Sales (Draft), Finance Desk']
+  owner_role_id uuid [ref: > roles.role_id]
+  sequence int
+  is_initial boolean
+  is_terminal boolean
+  is_editable boolean
+  color varchar(7)
+  indexes {
+    (org_id, entity_type, code) [unique]
+  }
+}
+
+Table stage_transitions {
+  transition_id uuid [pk]
+  from_stage_id uuid [not null, ref: > stages.stage_id]
+  to_stage_id uuid [not null, ref: > stages.stage_id]
+  allowed_role_id uuid [ref: > roles.role_id]
+  action_code varchar(40) [not null, note: 'APPROVE, RETURN, ACCEPT…']
+  requires_reason boolean [default: false]
+}
+
+Table stage_history {
+  history_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  entity_type varchar(20) [not null]
+  entity_id uuid [not null]
+  from_stage_id uuid [ref: > stages.stage_id]
+  to_stage_id uuid [ref: > stages.stage_id]
+  action_code varchar(40)
+  reason text
+  changed_by uuid [ref: > users.user_id]
+  changed_at timestamptz [not null]
+  indexes {
+    (entity_type, entity_id)
+  }
+}
+
+Table document_type_stage_rules {
+  rule_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  doc_type_code varchar(40) [not null, ref: > document_types.code]
+  stage_id uuid [not null, ref: > stages.stage_id]
+  requirement varchar(20) [not null, note: 'REQUIRED_TO_EXIT | OPTIONAL | AUTO_GENERATED']
+}
+
+// ───────────── Sales: customers, enquiries, quotes ─────────────
+TableGroup sales [color: #2E7D5B] {
+  customers
+  customer_contacts
+  customer_sites
+  inquiry_sources
+  inquiries
+  inquiry_items
+  quotes
+  quote_lines
+}
+
+Table customers {
+  customer_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  company_name varchar(200) [not null]
+  abn varchar(20)
+  payment_type varchar(10) [not null, note: 'CASH | CREDIT']
+  credit_limit numeric(12,2)
+  payment_terms_days int
+  on_stop boolean [not null, default: false]
+  on_stop_reason text
+  billing_address text
+  notes text
+  xero_contact_id varchar(64)
+  deleted_at timestamptz
+}
+
+Table customer_contacts {
+  contact_id uuid [pk]
+  customer_id uuid [not null, ref: > customers.customer_id]
+  name varchar(120) [not null]
+  email varchar(200)
+  phone varchar(40)
+  position varchar(80)
+  is_primary boolean [default: false]
+  is_billing_contact boolean [default: false]
+}
+
+Table customer_sites {
+  site_id uuid [pk]
+  customer_id uuid [not null, ref: > customers.customer_id]
+  name varchar(200)
+  address text
+  access_notes text
+}
+
+Table inquiry_sources {
+  source_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  name varchar(40) [not null, note: 'EMAIL | PHONE | WALK_IN | WEB_FORM | REFERRAL']
+  is_active boolean [default: true]
+}
+
+Table inquiries {
+  inquiry_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  inquiry_no varchar(20) [not null]
+  source_id uuid [ref: > inquiry_sources.source_id]
+  customer_id uuid [ref: > customers.customer_id]
+  company varchar(200)
+  contact_name varchar(120)
+  email varchar(200)
+  phone varchar(40)
+  description text
+  raw_message text
+  jobsite varchar(200)
+  hire_start date
+  hire_end date
+  duration_text varchar(60)
+  est_value numeric(12,2)
+  estimation_notes text
+  notes text
+  stage_id uuid [not null, ref: > stages.stage_id]
+  lost_reason text
+  assigned_to uuid [ref: > users.user_id]
+  quote_id uuid [ref: - quotes.quote_id]
+}
+
+Table inquiry_items {
+  item_id uuid [pk]
+  inquiry_id uuid [not null, ref: > inquiries.inquiry_id]
+  category_id uuid [ref: > equipment_categories.category_id]
+  model_id uuid [ref: > inventory_models.model_id]
+  qty int
+  capacity_text varchar(40)
+  notes text
+}
+
+Table quotes {
+  quote_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  quote_no varchar(20) [not null, note: 'shares the RO- number with its order']
+  inquiry_id uuid [ref: > inquiries.inquiry_id]
+  customer_id uuid [not null, ref: > customers.customer_id]
+  contact_id uuid [ref: > customer_contacts.contact_id]
+  version int [not null, default: 1]
+  hire_start timestamptz
+  hire_end timestamptz
+  jobsite varchar(200)
+  customer_po varchar(60)
+  delivery_address text
+  delivery_required boolean
+  pickup_required boolean
+  fuel_amount numeric(12,2)
+  deposit_amount numeric(12,2)
+  deposit_received_at timestamptz
+  damage_waiver boolean
+  quote_notes text
+  job_notes text
+  est_total numeric(12,2)
+  valid_until date
+  stage_id uuid [not null, ref: > stages.stage_id, note: 'DRAFT | SENT | ACCEPTED | CONVERTED | EXPIRED | CANCELLED']
+  tnc_accepted_by varchar(120)
+  tnc_accepted_via varchar(20) [note: 'EMAIL_REPLY | PHONE | SIGNED_PDF | IN_PERSON']
+  tnc_accepted_at timestamptz
+  tnc_proof_document_id uuid [ref: > documents.document_id]
+  order_id uuid [ref: - orders.order_id, note: 'set when accepted → converted']
+}
+
+Table quote_lines {
+  line_id uuid [pk]
+  quote_id uuid [not null, ref: > quotes.quote_id]
+  category_id uuid [not null, ref: > equipment_categories.category_id]
+  model_id uuid [ref: > inventory_models.model_id, note: 'optional in DRAFT, required to accept']
+  qty int [not null]
+  daily_rate numeric(12,2)
+  weekly_rate numeric(12,2)
+  monthly_rate numeric(12,2)
+  rate_overridden boolean [default: false]
+  line_notes text
+  sort_order int
+}
+
+// ───────────── Orders (hire jobs) ─────────────
+TableGroup hire_orders [color: #B5651D] {
+  orders
+  order_lines
+  order_line_assets
+  order_audits
+}
+
+Table orders {
+  order_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  order_no varchar(20) [not null]
+  quote_id uuid [ref: > quotes.quote_id]
+  customer_id uuid [not null, ref: > customers.customer_id]
+  contact_id uuid [ref: > customer_contacts.contact_id]
+  hire_start timestamptz
+  hire_end timestamptz
+  off_rent_at timestamptz
+  jobsite varchar(200)
+  customer_po varchar(60)
+  delivery_address text
+  delivery_required boolean
+  pickup_required boolean
+  fuel_amount numeric(12,2)
+  deposit_amount numeric(12,2)
+  damage_waiver boolean
+  quote_notes text
+  job_notes text
+  stage_id uuid [not null, ref: > stages.stage_id, note: 'CONFIRMED → PRE_PICK → DISPATCHED → OFF_RENT_PENDING → RETURNED → INVOICED → CLOSED']
+  confirmed_by uuid [ref: > users.user_id]
+  confirmed_at timestamptz
+  cancelled_reason text
+}
+
+Table order_lines {
+  line_id uuid [pk]
+  order_id uuid [not null, ref: > orders.order_id]
+  quote_line_id uuid [ref: > quote_lines.line_id]
+  model_id uuid [not null, ref: > inventory_models.model_id]
+  qty int [not null]
+  daily_rate numeric(12,2)
+  weekly_rate numeric(12,2)
+  monthly_rate numeric(12,2)
+  line_notes text
+}
+
+Table order_line_assets {
+  assignment_id uuid [pk]
+  order_line_id uuid [not null, ref: > order_lines.line_id]
+  instrument_id uuid [not null, ref: > instruments.instrument_id]
+  assigned_by uuid [ref: > users.user_id]
+  assigned_at timestamptz
+  dispatched_at timestamptz
+  dispatch_meter numeric(10,2)
+  returned_at timestamptz
+  return_meter numeric(10,2)
+  overage_amount numeric(12,2)
+  damage_flag boolean
+  missing_flag boolean
+  qc_notes text
+  qc_outcome varchar(20) [note: 'OK_WASH_PREP | REPAIR | MISSING']
+}
+
+Table order_audits {
+  audit_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  order_id uuid [not null, ref: > orders.order_id]
+  quote_id uuid [ref: > quotes.quote_id]
+  stage_id uuid [ref: > stages.stage_id]
+  event_type varchar(30) [not null]
+  entity_type varchar(30)
+  entity_id uuid
+  field_name varchar(60)
+  old_value jsonb
+  new_value jsonb
+  reason text
+  document_id uuid [ref: > documents.document_id]
+  performed_by uuid [ref: > users.user_id]
+  performed_role varchar(20)
+  performed_at timestamptz [not null]
+  source varchar(10) [note: 'UI | API | SYSTEM']
+  Note: 'Append-only'
+}
+
+// ───────────── Inventory & instruments ─────────────
+TableGroup fleet [color: #8A6D1F] {
+  equipment_categories
+  inventory_models
+  instruments
+  instrument_certificates
+  instrument_hidden_charges
+}
+
+Table equipment_categories {
+  category_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  name varchar(80) [not null]
+  sort_order int
+}
+
+Table inventory_models {
+  model_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  category_id uuid [not null, ref: > equipment_categories.category_id]
+  sku varchar(40) [not null, note: 'e.g. HOIST-CHAIN-E']
+  name varchar(200) [not null]
+  capacity varchar(40)
+  length_spec varchar(40)
+  daily_rate numeric(12,2)
+  weekly_rate numeric(12,2)
+  monthly_rate numeric(12,2)
+  requires_certificate boolean
+  cert_validity_months int
+  is_active boolean [default: true]
+  description text
+  indexes {
+    (org_id, sku) [unique]
+  }
+}
+
+Table instruments {
+  instrument_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  model_id uuid [not null, ref: > inventory_models.model_id]
+  serial_no varchar(60) [not null, note: 'RRP number, e.g. HOIST-CHAIN-E-A1']
+  manufacturer_serial varchar(80)
+  status varchar(20) [not null, note: 'AVAILABLE | RESERVED | ON_HIRE | IN_INSPECTION | MAINTENANCE | RETIRED']
+  yard_location varchar(80)
+  meter_reading numeric(10,2)
+  purchase_date date
+  purchase_cost numeric(12,2)
+  last_order_id uuid [ref: > orders.order_id]
+  notes text
+  indexes {
+    (org_id, serial_no) [unique]
+  }
+}
+
+Table instrument_certificates {
+  cert_id uuid [pk]
+  instrument_id uuid [not null, ref: > instruments.instrument_id]
+  cert_no varchar(60) [not null]
+  cert_type varchar(20) [note: 'LOAD_TEST | INSPECTION | CALIBRATION']
+  issued_on date
+  expires_on date
+  issued_by varchar(120)
+  document_id uuid [ref: > documents.document_id]
+  is_current boolean
+}
+
+Table instrument_hidden_charges {
+  charge_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  model_id uuid [ref: > inventory_models.model_id]
+  instrument_id uuid [ref: > instruments.instrument_id]
+  charge_type varchar(20) [not null, note: 'CLEANING | DAMAGE_RECERT | OVERAGE | MISSING_PART | RECERTIFICATION | DELIVERY | FUEL | OTHER']
+  description varchar(200)
+  amount numeric(12,2) [not null]
+  unit varchar(10) [note: 'FLAT | PER_METRE | PER_HOUR | PER_DAY']
+  is_taxable boolean [default: true]
+  trigger varchar(20) [note: 'ON_RETURN_DAMAGE | ON_RETURN_MISSING | ON_RETURN_DIRTY | ON_OVERAGE | ALWAYS | MANUAL']
+  is_active boolean [default: true]
+}
+
+// ───────────── Workshop & logistics ─────────────
+TableGroup workshop [color: #5D6D7E] {
+  work_orders
+  logistics_tasks
+}
+
+Table work_orders {
+  work_order_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  wo_no varchar(20)
+  instrument_id uuid [not null, ref: > instruments.instrument_id]
+  order_id uuid [ref: > orders.order_id]
+  type varchar(20) [note: 'REPAIR | PREVENTIVE | INSPECTION | TURNAROUND | MISSING_GEAR']
+  title varchar(200)
+  description text
+  stage_id uuid [not null, ref: > stages.stage_id]
+  due_date date
+  est_hours numeric(6,2)
+  parts_cost numeric(12,2)
+  labour_cost numeric(12,2)
+  chargeable_to_customer boolean
+  fee_estimate numeric(12,2)
+  assigned_to uuid [ref: > users.user_id]
+  started_at timestamptz
+  completed_at timestamptz
+}
+
+Table logistics_tasks {
+  task_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  order_id uuid [not null, ref: > orders.order_id]
+  type varchar(10) [not null, note: 'DELIVERY | PICKUP']
+  stage_id uuid [not null, ref: > stages.stage_id]
+  scheduled_at timestamptz
+  address text
+  vehicle_notes varchar(200)
+  auto_created boolean
+  driver_id uuid [ref: > users.user_id]
+  signed_by_name varchar(120)
+  signature_document_id uuid [ref: > documents.document_id]
+  completed_at timestamptz
+}
+
+// ───────────── Finance Desk ─────────────
+TableGroup finance [color: #A93226] {
+  invoices
+  invoice_lines
+  invoice_adjustments
+  payments
+  payment_allocations
+}
+
+Table invoices {
+  invoice_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  invoice_no varchar(30)
+  order_id uuid [ref: > orders.order_id]
+  customer_id uuid [not null, ref: > customers.customer_id]
+  invoice_type varchar(15) [note: 'FINAL | INTERIM | CREDIT_NOTE | DEPOSIT']
+  period_from date
+  period_to date
+  issue_date date
+  due_date date
+  stage_id uuid [not null, ref: > stages.stage_id, note: 'DRAFT | RETURNED | APPROVED | SENT | PARTIALLY_PAID | PAID | VOID']
+  subtotal numeric(12,2)
+  discount_amount numeric(12,2)
+  tax_rate numeric(5,2)
+  tax_amount numeric(12,2)
+  tax_overridden boolean [default: false]
+  tax_override_reason text
+  is_zeroed boolean [default: false]
+  zero_reason text
+  total numeric(12,2)
+  amount_paid numeric(12,2)
+  balance numeric(12,2) [note: 'generated: total - amount_paid']
+  returned_to_role_id uuid [ref: > roles.role_id]
+  return_reason text
+  approved_by uuid [ref: > users.user_id]
+  approved_at timestamptz
+  sent_at timestamptz
+  sent_to_email varchar(200)
+  xero_invoice_id varchar(64)
+  xero_synced_at timestamptz
+  credit_of_invoice_id uuid [ref: > invoices.invoice_id]
+}
+
+Table invoice_lines {
+  line_id uuid [pk]
+  invoice_id uuid [not null, ref: > invoices.invoice_id]
+  line_type varchar(15) [note: 'RENTAL | DAMAGE | CLEANING | OVERAGE | MISSING | FUEL | DELIVERY | DEPOSIT | DISCOUNT | OTHER']
+  description text
+  order_line_id uuid [ref: > order_lines.line_id]
+  instrument_id uuid [ref: > instruments.instrument_id]
+  charge_id uuid [ref: > instrument_hidden_charges.charge_id]
+  months int
+  weeks int
+  days int
+  qty numeric(10,2)
+  unit_price numeric(12,2)
+  amount numeric(12,2)
+  tax_code varchar(10) [note: 'GST | GST_FREE | EXEMPT | CUSTOM']
+  tax_rate numeric(5,2)
+  tax_amount numeric(12,2)
+  original_amount numeric(12,2)
+  is_manual boolean [default: false]
+  sort_order int
+}
+
+Table invoice_adjustments {
+  adjustment_id uuid [pk]
+  invoice_id uuid [not null, ref: > invoices.invoice_id]
+  line_id uuid [ref: > invoice_lines.line_id]
+  action varchar(20) [note: 'EDIT_LINE | ADD_LINE | REMOVE_LINE | ZERO | TAX_OVERRIDE | DISCOUNT | RETURN | APPROVE | REVERT']
+  field varchar(60)
+  old_value text
+  new_value text
+  reason text
+  adjusted_by uuid [ref: > users.user_id]
+  adjusted_at timestamptz
+}
+
+Table payments {
+  payment_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  customer_id uuid [not null, ref: > customers.customer_id]
+  amount numeric(12,2) [not null]
+  method varchar(20) [note: 'BANK_TRANSFER | CARD | CASH | CHEQUE | DEPOSIT_APPLIED']
+  reference varchar(100)
+  received_at date
+  notes text
+  xero_payment_id varchar(64)
+}
+
+Table payment_allocations {
+  allocation_id uuid [pk]
+  payment_id uuid [not null, ref: > payments.payment_id]
+  invoice_id uuid [not null, ref: > invoices.invoice_id]
+  amount numeric(12,2) [not null]
+}
+
+// ───────────── Documents (SharePoint) & support ─────────────
+TableGroup documents_support [color: #1F618D] {
+  document_types
+  documents
+  number_sequences
+  email_log
+  audit_log
+}
+
+Table document_types {
+  code varchar(40) [pk, note: 'QUOTE_PDF, SIGNED_ACCEPTANCE, PICKING_SLIP, DISPATCH_PHOTO, RETURN_PHOTO, POD_SIGNATURE, TAX_INVOICE_PDF, CERTIFICATE…']
+  name varchar(80)
+  entity_type varchar(20)
+  allowed_mime varchar(200)
+  max_mb int
+}
+
+Table documents {
+  document_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  doc_type_code varchar(40) [not null, ref: > document_types.code]
+  entity_type varchar(20) [not null]
+  entity_id uuid [not null]
+  stage_id uuid [ref: > stages.stage_id, note: 'stage of the parent record at upload; set by server']
+  file_name varchar(255)
+  mime_type varchar(100)
+  size_bytes bigint
+  sp_site_id varchar(200)
+  sp_drive_id varchar(200)
+  sp_item_id varchar(100)
+  sp_path varchar(500)
+  sp_web_url varchar(1000)
+  sp_etag varchar(100)
+  sp_version varchar(20)
+  storage_status varchar(10) [note: 'PENDING | STORED | FAILED | DELETED']
+  checksum varchar(64)
+  generated boolean
+  uploaded_by uuid [ref: > users.user_id]
+  deleted_at timestamptz
+  indexes {
+    (entity_type, entity_id, stage_id)
+  }
+}
+
+Table number_sequences {
+  org_id uuid [ref: > organization.id]
+  seq_type varchar(20) [note: 'ORDER | INVOICE | INQUIRY | WORK_ORDER']
+  next_value bigint [not null]
+  indexes {
+    (org_id, seq_type) [pk]
+  }
+}
+
+Table email_log {
+  email_id uuid [pk]
+  org_id uuid [not null, ref: > organization.id]
+  entity_type varchar(20)
+  entity_id uuid
+  template varchar(30) [note: 'QUOTE_TNC | INVOICE | REMINDER']
+  to_address varchar(500)
+  cc varchar(500)
+  subject varchar(300)
+  status varchar(20)
+  sent_at timestamptz
+  provider_message_id varchar(200)
+}
+
+Table audit_log {
+  audit_id uuid [pk]
+  org_id uuid [ref: > organization.id]
+  user_id uuid [ref: > users.user_id]
+  entity_type varchar(30)
+  entity_id uuid
+  action varchar(40)
+  diff jsonb
+  at timestamptz
+}

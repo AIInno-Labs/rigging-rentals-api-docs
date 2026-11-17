@@ -3,33 +3,75 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Rigging Rentals API — Swagger</title>
+  <title>Endpoints · Rigging Rentals API</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+  <link rel="stylesheet" href="./assets/site.css" />
   <style>
-    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #fafafa; }
-    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px;
-              padding: 12px 24px; background: #1f2a37; color: #fff; }
-    .topbar h1 { font-size: 16px; margin: 0; font-weight: 600; }
-    .topbar nav a { color: #cbd5e1; text-decoration: none; margin-left: 16px; font-size: 14px; }
-    .topbar nav a:hover, .topbar nav a.active { color: #fff; }
-    .swagger-ui .topbar { display: none; }
+    .intro { max-width: 1460px; margin: 0 auto; padding: 28px 28px 4px; }
+    .intro h1 { font-family: var(--font-sign); font-weight: 700; font-size: 34px; line-height: 1.1; margin: 0 0 6px; }
+    .intro p { margin: 0; max-width: 70ch; color: var(--chain); }
+    .flow { display: flex; flex-wrap: wrap; gap: 0; margin: 18px 0 0; padding: 0; list-style: none; font-size: 14px; }
+    .flow li { padding: 6px 14px 6px 12px; background: var(--panel); border: 1px solid var(--line); margin: 0 -1px -1px 0; }
+    .flow li a { text-decoration: none; }
+    .flow li a:hover { text-decoration: underline; }
+
+    /* Swagger UI, tuned to the site */
+    .swagger-ui { font-family: var(--font); color: var(--steel); }
+    .swagger-ui .wrapper { max-width: 1460px; padding: 0 28px; }
+    .swagger-ui .information-container { display: none; }
+    .swagger-ui .scheme-container { background: transparent; box-shadow: none; padding: 16px 0; border-bottom: 1px solid var(--line); }
+    .swagger-ui .opblock-tag { font-family: var(--font-sign); font-weight: 600; font-size: 24px; border-bottom: 1px solid var(--line); }
+    .swagger-ui .opblock-tag small { font-family: var(--font); font-size: 14px; color: var(--chain); }
+    .swagger-ui .opblock { border-radius: 2px; box-shadow: none; }
+    .swagger-ui .opblock .opblock-summary-method { border-radius: 2px; font-family: var(--font-sign); font-size: 15px; min-width: 78px; }
+    .swagger-ui .opblock .opblock-summary-path { font-family: var(--font-code); font-size: 14px; }
+    .swagger-ui .opblock .opblock-summary-description { color: var(--steel-2); }
+    .swagger-ui .btn.authorize { border-color: var(--steel); color: var(--steel); }
+    .swagger-ui .btn.authorize svg { fill: var(--steel); }
+    .swagger-ui .filter-container .operation-filter-input { border: 1px solid var(--line); border-radius: 2px; }
+    .swagger-ui section.models { border-radius: 2px; }
+    .swagger-ui .markdown code, .swagger-ui .renderedMarkdown code { font-family: var(--font-code); background: var(--galv); color: var(--steel); }
   </style>
 </head>
 <body>
-  <header class="topbar">
-    <h1>Rigging Rentals API</h1>
-    <nav>
-      <a href="./" class="active">Swagger UI</a>
-      <a href="./redoc.html">Reference (Redoc)</a>
-      <a href="./openapi.yaml" download>Download openapi.yaml</a>
+  <header class="rr-bar">
+    <a class="rr-brand" href="./">
+      <span class="rr-tag" aria-hidden="true">API</span>
+      <span>
+        <span class="rr-brand-name">Rigging Rentals</span>
+        <span class="rr-brand-sub">API v1</span>
+      </span>
+    </a>
+    <nav class="rr-nav" aria-label="Documentation">
+      <a href="./" aria-current="page">Endpoints</a>
+      <a href="./redoc.html">Reference</a>
+      <a href="./schema.html">Database</a>
+      <a class="rr-dl" href="./openapi.yaml" download>openapi.yaml</a>
     </nav>
   </header>
+
+  <section class="intro">
+    <h1>Endpoints</h1>
+    <p>Every call the React app makes to the Spring Boot backend. Sign in with <strong>Authorize</strong> using a JWT from <code>POST /auth/login</code>, then open an endpoint to see its request, response and the privilege it needs.</p>
+    <ol class="flow" aria-label="Hire job flow">
+      <li><a href="#/sales">Enquiry and quote</a></li>
+      <li><a href="#/sales/postQuotesIdAccept">Accept = order</a></li>
+      <li><a href="#/orders">Pick and dispatch</a></li>
+      <li><a href="#/workshop">Deliver, collect, repair</a></li>
+      <li><a href="#/orders/postOrdersIdReturnQc">Return check</a></li>
+      <li><a href="#/finance">Finance Desk</a></li>
+      <li><a href="#/documents">Files in SharePoint</a></li>
+    </ol>
+  </section>
+
   <div id="swagger-ui"></div>
 
   <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js" crossorigin></script>
-  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js" crossorigin></script>
   <script>
-    window.onload = function () {
+    window.addEventListener("load", function () {
       window.ui = SwaggerUIBundle({
         url: "./openapi.yaml",
         dom_id: "#swagger-ui",
@@ -40,11 +82,10 @@
         displayRequestDuration: true,
         persistAuthorization: true,
         tryItOutEnabled: false,
-        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
-        plugins: [SwaggerUIBundle.plugins.DownloadUrl],
-        layout: "StandaloneLayout"
+        presets: [SwaggerUIBundle.presets.apis],
+        layout: "BaseLayout"
       });
-    };
+    });
   </script>
 </body>
 </html>

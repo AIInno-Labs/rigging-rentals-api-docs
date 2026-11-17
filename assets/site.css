@@ -1,0 +1,63 @@
+/* Rigging Rentals API docs — shared chrome
+   Palette: yard steel, galvanised, chain grey, hi-vis (one accent), tag red (status only) */
+:root {
+  --steel: #1E2A33;
+  --steel-2: #2B3A46;
+  --galv: #EEF0F1;
+  --panel: #FFFFFF;
+  --chain: #6A7681;
+  --line: #D5DADE;
+  --hivis: #F5B700;
+  --tag-red: #B3412F;
+  --font: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sign: "Barlow Condensed", "Barlow", system-ui, sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { font-family: var(--font); color: var(--steel); background: var(--galv); line-height: 1.5; }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--hivis); outline-offset: 2px; }
+
+/* top bar */
+.rr-bar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 28px;
+  height: 60px; padding: 0 28px;
+  background: var(--steel); color: #fff;
+}
+.rr-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+.rr-brand-name { font-family: var(--font-sign); font-weight: 600; font-size: 21px; letter-spacing: .01em; }
+.rr-brand-sub { font-size: 13px; color: #A9B4BD; }
+
+/* the one memorable element: a WLL load tag */
+.rr-tag {
+  position: relative; display: inline-grid; place-items: center;
+  width: 46px; height: 30px; padding-left: 8px;
+  background: var(--hivis); color: var(--steel);
+  font-family: var(--font-sign); font-weight: 700; font-size: 13px; line-height: 1;
+  clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%);
+}
+.rr-tag::before {
+  content: ""; position: absolute; left: 8px; top: 50%; width: 6px; height: 6px;
+  margin-top: -3px; border-radius: 50%; background: var(--steel);
+}
+
+.rr-nav { display: flex; gap: 4px; margin-left: auto; height: 100%; }
+.rr-nav a {
+  display: flex; align-items: center; padding: 0 14px; height: 100%;
+  font-size: 15px; color: #C8D0D6; text-decoration: none;
+  border-bottom: 3px solid transparent;
+}
+.rr-nav a:hover { color: #fff; }
+.rr-nav a[aria-current="page"] { color: #fff; border-bottom-color: var(--hivis); }
+.rr-nav .rr-dl { color: #A9B4BD; font-size: 14px; }
+
+@media (max-width: 760px) {
+  .rr-bar { gap: 12px; padding: 0 14px; height: auto; min-height: 56px; flex-wrap: wrap; }
+  .rr-brand-sub { display: none; }
+  .rr-nav { margin-left: 0; width: 100%; overflow-x: auto; height: 44px; }
+  .rr-nav a { padding: 0 10px; white-space: nowrap; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

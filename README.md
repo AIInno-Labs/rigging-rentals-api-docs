@@ -6,7 +6,11 @@ API documentation for the Rigging Rentals platform (Spring Boot backend, React f
 |---|---|
 | `index.html` | Swagger UI: browse and try the endpoints |
 | `redoc.html` | Redoc: a clean, readable reference |
+| `schema.html` | Database browser: every table, column, key and relationship |
 | `openapi.yaml` | The OpenAPI 3.0.3 contract (the source of truth) |
+| `schema.dbml` | The database as DBML. Paste it into dbdiagram.io for the ER diagram |
+| `schema.sql` | PostgreSQL CREATE TABLE script generated from the DBML |
+| `assets/` | Shared styles and the schema data used by `schema.html` |
 
 ## Publish on GitHub Pages (one-time setup)
 
@@ -36,6 +40,15 @@ Pull requests are validated but not deployed, so spec changes can be reviewed fi
 
 - On a **public** repository the Pages site is public. That is fine for a client review if the spec has no secrets (it has none: only example data and placeholder hosts).
 - To restrict access, use a private repository on a GitHub Enterprise Cloud plan and set Pages visibility to private. Otherwise, use a private repo and share the YAML through Postman or SwaggerHub instead.
+
+## Updating the database diagram
+
+Edit `schema.dbml`, then regenerate the SQL and the browser data:
+```bash
+npm i @dbml/core
+node -e "const {exporter}=require('@dbml/core');const fs=require('fs');fs.writeFileSync('schema.sql',exporter.export(fs.readFileSync('schema.dbml','utf8'),'postgres'))"
+```
+(`assets/schema-data.js` is rebuilt the same way; see the snippet in the project notes.)
 
 ## Local preview
 
